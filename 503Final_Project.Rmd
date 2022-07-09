@@ -1,0 +1,122 @@
+---
+title: "Final_Project"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(caret)
+
+dbsData <- read.csv(file = "C:/data/diabetes.csv")
+
+dbsData$Glucose [dbsData$Glucose==0]=median(dbsData$Glucose[dbsData$Glucose>0]) #wherever Glucose is 0, change that value to the median of all numbers greater than 0
+dbsData$BloodPressure [dbsData$BloodPressure==0]=median(dbsData$BloodPressure[dbsData$BloodPressure>0]) #wherever BloodPressure is 0, change that value to the median of all numbers greater than 0
+dbsData$SkinThickness [dbsData$SkinThickness==0]=median(dbsData$SkinThickness[dbsData$SkinThickness>0]) #wherever SkinThickness0 is 0, change that value to the median of all numbers greater than 0
+dbsData$Insulin [dbsData$Insulin==0]=median(dbsData$Insulin[dbsData$Insulin>0]) #wherever Insulin is 0, change that value to the median of all numbers greater than 0
+dbsData$BMI [dbsData$BMI==0]=median(dbsData$BMI[dbsData$BMI>0]) #wherever BMI is 0, change that value to the median of all numbers greater than 0
+
+nearZero_dbsData <- nearZeroVar(dbsData)
+nearZero_dbsData
+#dbsData <- dbsData[,-nearZero_dbsData]
+
+flcdbsData <- findLinearCombos(dbsData)
+flcdbsData
+#dbsData <- dbsData[, -flcdbsData$remove]
+
+dbsData_Predictors <- dbsData[c(-9)]
+dbsData_Response <- dbsData$Outcome
+
+dbsData_Response[ dbsData_Response==1 ] = "Yes"
+dbsData_Response[ dbsData_Response==0 ] = "No"
+
+dbsData_Response <- factor( dbsData_Response, c("Yes","No"))
+
+
+```
+
+```{r}
+
+dbsData_Partition <- createDataPartition(dbsData_Response, p=0.8, list=FALSE)
+
+PredictorTrain <- dbsData_Predictors[dbsData_Partition,]
+PredictorTest <- dbsData_Predictors[-dbsData_Partition,]
+
+ResponseTrain <- dbsData_Response[dbsData_Partition]
+ResponseTest <- dbsData_Response[-dbsData_Partition]
+
+ctrl = trainControl( summaryFunction=twoClassSummary, classProbs=TRUE )
+
+```
+
+Linear Discriminant Analysis Model
+
+```{r warning=FALSE}
+
+set.seed(123)
+
+ldaModel <- caret::train(x=PredictorTrain, y=ResponseTrain, 
+method="lda", 
+preProc=c("center","scale"), 
+metric="ROC", trControl=ctrl)
+
+ldaModel
+
+ldaModel_predict <- predict(ldaModel, PredictorTest)
+
+confusionMatrix(ldaModel_predict, ResponseTest)
+
+```
+
+
+K-Nearest Neighbors
+
+```{r warning=FALSE}
+
+set.seed(123)
+
+knnModel <- caret::train(x=PredictorTrain, y=ResponseTrain, 
+method = "knn",
+metric = "ROC",
+preProc = c("center", "scale"),
+tuneLength = 15,
+trControl = ctrl)
+
+knnModel
+
+confusionMatrix(knnModel)
+
+knnModel_predict = predict(knnModel, PredictorTest, type="prob" )
+
+knn_rocCurve = pROC::roc(ResponseTest, predictor=knnModel_predict[,1])
+knn_auc = knn_rocCurve$auc[1]
+
+knn_auc
+
+
+```
+
+```{r}
+
+library(randomForest)
+
+rfModel <- randomForest(x=PredictorTrain, y=ResponseTrain,importance = TRUE, ntrees = 1000)
+
+rfModel
+
+rfModel_predict = predict(rfModel, PredictorTest, type="prob" )
+
+rf_rocCurve = pROC::roc(ResponseTest, predictor=rfModel_predict[,1])
+rf_auc = rf_rocCurve$auc[1]
+
+rf_auc
+
+#Accuracy = 1 - OOB error
+
+```
+
+
+
+
